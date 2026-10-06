@@ -8,8 +8,8 @@
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx --env-file=.env.local scripts/smoke.ts",
-    "calibrate": "tsx --env-file=.env.local scripts/calibrate.ts",
+    "smoke": "tsx --env-file=.env scripts/smoke.ts",
+    "calibrate": "tsx --env-file=.env scripts/calibrate.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
