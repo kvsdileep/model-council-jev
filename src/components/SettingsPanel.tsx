@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Settings } from "@/lib/events";
 import { Prompt } from "./Prompt";
 
@@ -35,6 +35,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [warning, setWarning] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const requestId = useRef(0);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -48,21 +50,39 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   async function save(next: Form) {
+    const id = ++requestId.current;
+    setSaving(true);
     setErrors([]);
     setSaved(false);
-    const res = await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fromForm(next)),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      setErrors(body.errors ?? [`HTTP ${res.status}`]);
-      return;
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fromForm(next)),
+      });
+      let body: { settings?: Settings; errors?: string[] } = {};
+      try {
+        body = await res.json();
+      } catch {
+        if (id !== requestId.current) return;
+        setErrors([`HTTP ${res.status}`]);
+        return;
+      }
+      if (id !== requestId.current) return;
+      if (!res.ok) {
+        setErrors(body.errors ?? [`HTTP ${res.status}`]);
+        return;
+      }
+      if (!body.settings) {
+        setErrors([`HTTP ${res.status}`]);
+        return;
+      }
+      setForm(toForm(body.settings));
+      setWarning(null);
+      setSaved(true);
+    } finally {
+      if (id === requestId.current) setSaving(false);
     }
-    setForm(toForm(body.settings));
-    setWarning(null);
-    setSaved(true);
   }
 
   return (
@@ -104,13 +124,13 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </p>
         )}
         <div className="actions">
-          <button className="btn" data-testid="settings-save" disabled={!form} onClick={() => form && save(form)}>
+          <button className="btn" data-testid="settings-save" disabled={!form || saving} onClick={() => form && save(form)}>
             $ save
           </button>
           <button
             className="btn-ghost"
             data-testid="settings-reset"
-            disabled={!defaults}
+            disabled={!defaults || saving}
             onClick={() => defaults && save(toForm(defaults))}
           >
             $ reset --defaults
